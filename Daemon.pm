@@ -8,6 +8,7 @@ use Getopt::Std;
 use Pod::Usage;
 use Log::Log4perl qw(:easy);
 use File::Basename;
+use Sys::Proctitle qw(:all);
 use Proc::ProcessTable;
 use Log::Log4perl qw(:easy);
 use POSIX;
@@ -21,6 +22,7 @@ our ($pidfile, $logfile, $l4p_conf, $as_user, $background,
      $loglevel, $action, $appname);
 $action  = "";
 $appname = appname();
+my $daemon_pid;
 
 ###########################################
 sub cmd_line_parse {
@@ -113,11 +115,10 @@ sub daemonize {
 
     if($action eq "stop" or $action eq "restart") {
         if(-f $pidfile) {
-            my $pid = pid_file_read();
-            if(kill 0, $pid) {
+            if( my $pid = pid_file_process_running() ) {
                 kill 2, $pid;
             } else {
-                ERROR "Process $pid not running\n";
+                ERROR "Daemon not running or name not match, removing pidfile\n";
                 unlink $pidfile or die "Can't remove $pidfile ($!)";
             }
         } else {
@@ -139,15 +140,16 @@ sub daemonize {
         detach( $as_user );
     }
 
-    $SIG{__DIE__} = sub { 
-          # Make sure it's not an eval{} triggering the handler.
-        if(defined $^S && $^S==0) {
-            unlink $pidfile or warn "Cannot remove $pidfile";
-        }
-    };
-    
-    INFO "Process ID is $$";
-    pid_file_write($$);
+    if( $appname ) {
+        setproctitle( $appname );
+    }
+
+    $SIG{INT}  = sub { exit; };
+    $SIG{TERM} = sub { exit; };
+
+    $daemon_pid = $$;
+    INFO "Process ID is $daemon_pid";
+    pid_file_write($daemon_pid);
     INFO "Written to $pidfile";
 
     return 1;
@@ -213,7 +215,7 @@ sub status {
     } else {
         print "No pidfile found\n";
     }
-    my @cmdlines = processes_running_by_name( $appname );
+    my @cmdlines = processes_running_by_name($appname);
     print "Name match:  ", scalar @cmdlines, "\n";
     for(@cmdlines) {
         print "    ", $_, "\n";
@@ -241,19 +243,19 @@ sub process_running {
 ###########################################
 sub processes_running_by_name {
 ###########################################
-    my($name) = @_;
+    my($name, @pids) = @_;
 
-    $name = basename($name);
+    my %pids = map { $_ => undef } @pids;
     my @procs = ();
 
     my $t = Proc::ProcessTable->new();
 
     foreach my $p ( @{$t->table} ){
-        if($p->cmndline() =~ /\b\Q${name}\E\b/) {
-            next if $p->pid() == $$;
-            DEBUG "Match: ", $p->cmndline();
-            push @procs, $p->cmndline();
-        }
+        next if $p->cmndline() ne $name;
+        next if $p->pid() == $$;
+        next if @pids and !exists($pids{$p->pid()});
+        DEBUG "Match: ", $p->cmndline();
+        push @procs, $p->cmndline();
     }
     return @procs;
 }
@@ -329,11 +331,25 @@ sub pid_file_process_running {
     if(! $pid) {
         return undef;
     }
-    if(process_running($pid)) {
-        return $pid;
+    if(! process_running($pid) ) {
+        return undef;
+    }
+    if(! processes_running_by_name($appname, $pid) ) {
+        return undef;
     }
 
-    return undef;
+    return $pid;
+}
+
+###########################################
+sub END {
+###########################################
+    if( $daemon_pid && $daemon_pid == $$ ) {
+        INFO "Stopping Process with ID $daemon_pid";
+        local $SIG{INT} = 'IGNORE';
+        kill 'INT' => -$daemon_pid;
+        unlink $pidfile or WARN "Cannot remove $pidfile";
+    }
 }
 
 1;
