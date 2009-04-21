@@ -1,22 +1,15 @@
-use Test::More tests => 18;
+use Test::More tests => 27;
 
 use App::Daemon qw(daemonize cmd_line_parse);
-use File::Temp qw(tempfile);
+use File::Temp qw(tempfile tmpnam);
 use Fcntl qw/:flock/;
 
-my $appname = 'this_is_such_a_cool_progname_I_AM_UNIQUE';
-#my($pf, $pidfile) = tempfile(UNLINK => 1);
-#my($lf, $logfile) = tempfile(UNLINK => 1);
-#my($of, $outfile) = tempfile(UNLINK => 1);
-#my($ef, $errfile) = tempfile(UNLINK => 1);
-my($pf, $pidfile) = tempfile();
-my($lf, $logfile) = tempfile();
-my($of, $outfile) = tempfile();
-my($ef, $errfile) = tempfile();
+my $appname = 'appname_for_testing_with_pid_from_testscript_'.$$;
+my $pidfile = tmpnam();
 
-# pidfile should not exists at first start
-close $pf;
-unlink $pidfile;
+my($lf, $logfile) = tempfile(UNLINK => 1);
+my($of, $outfile) = tempfile(UNLINK => 1);
+my($ef, $errfile) = tempfile(UNLINK => 1);
 
 # Turdix locks temp files, so unlock them just in case
 flock $lf, LOCK_UN;
@@ -49,11 +42,18 @@ else {
     # dont let the childs removing the pidfile
     if( !fork() ) {
         die("I am a dying child");
+        exit;
     }
     if( !fork() ) {
         exit; # I am a exiting child
     }
-
+    # start simple child
+    # TODO a forked daemonchild should change his name!
+    if( !fork() ) {
+        $0 = $appname."_child_fork";
+        sleep(1) while($^T + 60 > time());
+        exit;
+    }
     sleep(1) while($^T + 60 > time());
     exit;
 }
@@ -64,14 +64,6 @@ chomp $pid;
 close PIDFILE;
 
 ok($pid, "daemon pid found");
-
-# check log message
-open FILE, "<$logfile";
-my $data = join '', <FILE>;
-close FILE;
-
-like($data, qr/^[0-9 :\/]+Process ID is $pid$/m, "log message: pid");
-like($data, qr/^[0-9 :\/]+Written to $pidfile$/m, "log message: pidfile");
 
 # check status message after start
 if( fork ) {
@@ -85,14 +77,15 @@ else {
     exit;
 }
 open FILE, "<$outfile";
-my $data = join '', <FILE>;
+my @data = <FILE>;
 close FILE;
 
-like($data, qr/^Pid file:\s+$pidfile$/m, "status message: pidfile");
-like($data, qr/^Pid in file:\s+$pid$/m, "status message: pid");
-like($data, qr/^Running:\s+yes$/m, "status message: running");
-like($data, qr/^Name match:\s+1$/m, "status message: match one process");
-like($data, qr/^\s+$appname$/m, "status message: match appname");
+is(scalar(@data), 5, "status message: lines") or diag(@data);
+like($data[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
+like($data[1], qr/^Pid in file:\s+$pid$/, "status message: pid");
+like($data[2], qr/^Running:\s+yes$/, "status message: running");
+like($data[3], qr/^Name match:\s+1$/, "status message: match one process");
+like($data[4], qr/^\s+$appname$/, "status message: match appname");
 
 # check stop
 if( fork ) {
@@ -117,11 +110,57 @@ else {
     exit;
 }
 open FILE, "<$outfile";
-my $data = join '', <FILE>;
+my @data = <FILE>;
 close FILE;
 
-like($data, qr/^Pid file:\s+$pidfile$/m, "status message: pidfile");
-like($data, qr/^No pidfile found$/m, "status message: no pidfile");
-like($data, qr/^Name match:\s+0$/m, "status message: match none process");
+is(scalar(@data), 3, "status message: lines") or diag(@data);
+like($data[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
+like($data[1], qr/^No pidfile found$/, "status message: no pidfile");
+like($data[2], qr/^Name match:\s+0$/, "status message: match none process");
 
-is(-s $errfile, 0, "no errors");
+# fakestart
+my $fakepid;
+if( $fakepid = fork ) {
+    ok(1, "fakestart forked");
+    sleep(1);
+}
+else {
+    open FILE, ">$pidfile";
+    print FILE "$$\n";
+    close FILE;
+    $SIG{INT} = sub { exit; };
+    sleep(1) while($^T + 60 > time());
+    exit;
+}
+
+# fakestop
+if( fork ) {
+    ok(1, "fakestop forked");
+    sleep(1);
+}
+else {
+    @ARGV = qw(stop);
+    daemonize();
+    exit;
+}
+
+ok(kill(0, $fakepid), "stop dont kill fakedaemon") and kill(2, $fakepid);
+ok(!-e $pidfile, "stop deleted fakepidfile");
+
+# check log message
+open FILE, "<$logfile";
+my @data = <FILE>;
+close FILE;
+
+is(scalar(@data), 3, "log message: lines") or diag(@data);
+like($data[0], qr/^[0-9 :\/]+Process ID is $pid$/, "log message: pid");
+like($data[1], qr/^[0-9 :\/]+Written to $pidfile$/, "log message: pidfile");
+like($data[2], qr/^[0-9 :\/]+Stopping Process with ID $pid$/, "log message: stopping");
+
+# nothing was send to STDERR?
+open FILE, "<$errfile";
+my @data = <FILE>;
+close FILE;
+
+is(scalar @data, 1, "stderr message: lines") or diag(@data);
+like($data[0], qr/^Daemon\.pm-[0-9]+: Daemon not running or name not match, removing pidfile$/, "stderr message: fakestop");
