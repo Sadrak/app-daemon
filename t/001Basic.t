@@ -13,15 +13,10 @@ flock $pf, LOCK_UN;
 
 ok(1, "loaded ok");
 
-open(OLDERR, ">&STDERR");
 open(STDERR, ">$tempfile");
 
 @ARGV = ("-X", "-p", $pidfile);
 daemonize();
-
-close STDERR;
-open(STDERR, ">&OLDERR");
-close OLDERR;
 
 ok(1, "running in foreground with -X");
 
