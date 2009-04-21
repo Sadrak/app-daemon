@@ -77,15 +77,15 @@ else {
     exit;
 }
 open FILE, "<$outfile";
-my @data = <FILE>;
+my @data1 = <FILE>;
 close FILE;
 
-is(scalar(@data), 5, "status message: lines") or diag(@data);
-like($data[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
-like($data[1], qr/^Pid in file:\s+$pid$/, "status message: pid");
-like($data[2], qr/^Running:\s+yes$/, "status message: running");
-like($data[3], qr/^Name match:\s+1$/, "status message: match one process");
-like($data[4], qr/^\s+$appname$/, "status message: match appname");
+is(scalar(@data1), 5, "status message: lines") or diag(@data1);
+like($data1[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
+like($data1[1], qr/^Pid in file:\s+$pid$/, "status message: pid");
+like($data1[2], qr/^Running:\s+yes$/, "status message: running");
+like($data1[3], qr/^Name match:\s+1$/, "status message: match one process");
+like($data1[4], qr/^\s+$appname$/, "status message: match appname");
 
 # check stop
 if( fork ) {
@@ -110,13 +110,13 @@ else {
     exit;
 }
 open FILE, "<$outfile";
-my @data = <FILE>;
+my @data2 = <FILE>;
 close FILE;
 
-is(scalar(@data), 3, "status message: lines") or diag(@data);
-like($data[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
-like($data[1], qr/^No pidfile found$/, "status message: no pidfile");
-like($data[2], qr/^Name match:\s+0$/, "status message: match none process");
+is(scalar(@data2), 3, "status message: lines") or diag(@data2);
+like($data2[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
+like($data2[1], qr/^No pidfile found$/, "status message: no pidfile");
+like($data2[2], qr/^Name match:\s+0$/, "status message: match none process");
 
 # fakestart
 my $fakepid;
@@ -149,13 +149,13 @@ ok(!-e $pidfile, "stop deleted fakepidfile");
 
 # check log message
 open FILE, "<$logfile";
-my @data = <FILE>;
+my @data3 = <FILE>;
 close FILE;
 
-is(scalar(@data), 3, "log message: lines") or diag(@data);
-like($data[0], qr/^[0-9 :\/]+Process ID is $pid$/, "log message: pid");
-like($data[1], qr/^[0-9 :\/]+Written to $pidfile$/, "log message: pidfile");
-like($data[2], qr/^[0-9 :\/]+Stopping Process with ID $pid$/, "log message: stopping");
+is(scalar(@data3), 3, "log message: lines") or diag(@data3);
+like($data3[0], qr/^[0-9 :\/]+Process ID is $pid$/, "log message: pid");
+like($data3[1], qr/^[0-9 :\/]+Written to $pidfile$/, "log message: pidfile");
+like($data3[2], qr/^[0-9 :\/]+Stopping Process with ID $pid$/, "log message: stopping");
 
 # nothing was send to STDERR?
 open FILE, "<$errfile";
