@@ -1,4 +1,4 @@
-use Test::More qw(no_plan);
+use Test::More tests => 18;
 
 use App::Daemon qw(daemonize cmd_line_parse);
 use File::Temp qw(tempfile);
@@ -26,6 +26,9 @@ flock $ef, LOCK_UN;
 # Ignore childs / zombies
 $SIG{CHLD} = 'IGNORE';
 
+# send all error to a file
+open(STDERR, ">$errfile");
+
 ok(1, "loaded ok");
 ok(!-e $pidfile, "pidfile not exists");
 
@@ -42,11 +45,20 @@ if( fork() ) {
 else {
     @ARGV = ();
     daemonize();
+
+    # dont let the childs removing the pidfile
+    if( !fork() ) {
+        die("I am a dying child");
+    }
+    if( !fork() ) {
+        exit; # I am a exiting child
+    }
+
     sleep(1) while($^T + 60 > time());
     exit;
 }
 
-open PIDFILE, "<$pidfile" or die($!);
+open PIDFILE, "<$pidfile";
 my $pid = <PIDFILE>;
 chomp $pid;
 close PIDFILE;
@@ -54,7 +66,7 @@ close PIDFILE;
 ok($pid, "daemon pid found");
 
 # check log message
-open FILE, "<$logfile" or die($!);
+open FILE, "<$logfile";
 my $data = join '', <FILE>;
 close FILE;
 
@@ -67,12 +79,12 @@ if( fork ) {
     sleep(1);
 }
 else {
-    open(STDOUT, ">$outfile") or die($!);
+    open(STDOUT, ">$outfile");
     @ARGV = qw(status);
     daemonize();
     exit;
 }
-open FILE, "<$outfile" or die($!);
+open FILE, "<$outfile";
 my $data = join '', <FILE>;
 close FILE;
 
@@ -99,12 +111,12 @@ if( fork ) {
     sleep(1);
 }
 else {
-    open(STDOUT, ">$outfile") or die($!);
+    open(STDOUT, ">$outfile");
     @ARGV = qw(status);
     daemonize();
     exit;
 }
-open FILE, "<$outfile" or die($!);
+open FILE, "<$outfile";
 my $data = join '', <FILE>;
 close FILE;
 
@@ -112,4 +124,4 @@ like($data, qr/^Pid file:\s+$pidfile$/m, "status message: pidfile");
 like($data, qr/^No pidfile found$/m, "status message: no pidfile");
 like($data, qr/^Name match:\s+0$/m, "status message: match none process");
 
-
+is(-s $errfile, 0, "no errors");
