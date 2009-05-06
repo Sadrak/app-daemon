@@ -1,5 +1,11 @@
 Revision history for Perl extension App::Daemon.
 
+0.08 (05/06/2009)
+    (fo) Added feature for changing and checking appname.
+         Every daemon now set the appname in the processtable.
+         If the -c flag is set, befor sending a kill to a process,
+         the appname will be checked.
+
 0.07 (03/24/2009)
     (ms) Applied patch by Sadrak [rt:44513] to check if Log4perl has
          already been initialized and skip the easy_init call in this

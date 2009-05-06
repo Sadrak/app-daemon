@@ -8,7 +8,6 @@ WriteMakefile(
         Log::Log4perl      => "1.0",
         File::Pid          => 0,
         Proc::ProcessTable => 0,
-        Sys::Proctitle     => 0,
         Getopt::Std        => 0,
         Pod::Usage         => 0,
         File::Basename     => 0,

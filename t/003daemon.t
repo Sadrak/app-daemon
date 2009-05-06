@@ -1,4 +1,4 @@
-use Test::More tests => 27;
+use Test::More tests => 28;
 
 use App::Daemon qw(daemonize cmd_line_parse);
 use File::Temp qw(tempfile tmpnam);
@@ -26,9 +26,10 @@ ok(1, "loaded ok");
 ok(!-e $pidfile, "pidfile not exists");
 
 $App::Daemon::background = 1;
-$App::Daemon::appname    = $appname;
-$App::Daemon::pidfile    = $pidfile;
-$App::Daemon::logfile    = $logfile;
+$App::Daemon::appname       = $appname;
+$App::Daemon::check_appname = 1;
+$App::Daemon::pidfile       = $pidfile;
+$App::Daemon::logfile       = $logfile;
 
 # check start
 if( fork() ) {
@@ -50,7 +51,6 @@ else {
     # start simple child
     # TODO a forked daemonchild should change his name!
     if( !fork() ) {
-        $0 = $appname."_child_fork";
         sleep(1) while($^T + 60 > time());
         exit;
     }
@@ -80,12 +80,13 @@ open FILE, "<$outfile";
 my @data1 = <FILE>;
 close FILE;
 
-is(scalar(@data1), 5, "status message: lines") or diag(@data1);
+is(scalar(@data1), 6, "status message: lines") or diag(@data1);
 like($data1[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
 like($data1[1], qr/^Pid in file:\s+$pid$/, "status message: pid");
 like($data1[2], qr/^Running:\s+yes$/, "status message: running");
-like($data1[3], qr/^Name match:\s+1$/, "status message: match one process");
+like($data1[3], qr/^Name match:\s+2$/, "status message: match two processes");
 like($data1[4], qr/^\s+$appname$/, "status message: match appname");
+like($data1[5], qr/^\s+$appname$/, "status message: match childs appname");
 
 # check stop
 if( fork ) {

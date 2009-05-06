@@ -2,13 +2,12 @@ package App::Daemon;
 use strict;
 use warnings;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use Getopt::Std;
 use Pod::Usage;
 use Log::Log4perl qw(:easy);
 use File::Basename;
-use Sys::Proctitle qw(:all);
 use Proc::ProcessTable;
 use Log::Log4perl qw(:easy);
 use POSIX;
@@ -19,7 +18,7 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(daemonize cmd_line_parse detach);
 
 our ($pidfile, $logfile, $l4p_conf, $as_user, $background, 
-     $loglevel, $action, $appname);
+     $loglevel, $action, $appname, $check_appname);
 $action  = "";
 $appname = appname();
 my $daemon_pid;
@@ -38,6 +37,10 @@ sub cmd_line_parse {
 
     if(!defined $logfile) {
       $logfile    = find_option('-l', 1) || ( '/tmp/' . $appname . ".log" );
+    }
+
+    if(!defined $check_appname) {
+      $check_appname = find_option('-c');
     }
 
     if(!defined $l4p_conf) {
@@ -140,14 +143,16 @@ sub daemonize {
         detach( $as_user );
     }
 
-    if( $appname ) {
-        setproctitle( $appname );
-    }
+    # save the pid to prevent forked child to remove the pid
+    $daemon_pid = $$;
 
+    # set processtitle
+    $0 = $appname;
+
+    # set SIGNAL for INT and TERM to stop the daemon
     $SIG{INT}  = sub { exit; };
     $SIG{TERM} = sub { exit; };
 
-    $daemon_pid = $$;
     INFO "Process ID is $daemon_pid";
     pid_file_write($daemon_pid);
     INFO "Written to $pidfile";
@@ -164,7 +169,7 @@ sub detach {
  
       # Make sure the child isn't killed when the uses closes the
       # terminal session before the child detaches from the tty.
-    $SIG{'HUP'} = 'IGNORE';
+    local $SIG{'HUP'} = 'IGNORE';
  
     my $child = fork();
  
@@ -245,15 +250,16 @@ sub processes_running_by_name {
 ###########################################
     my($name, @pids) = @_;
 
+    # check a set of pids if @pids is set
     my %pids = map { $_ => undef } @pids;
     my @procs = ();
 
     my $t = Proc::ProcessTable->new();
 
     foreach my $p ( @{$t->table} ){
-        next if $p->cmndline() ne $name;
-        next if $p->pid() == $$;
-        next if @pids and !exists($pids{$p->pid()});
+        next if $p->pid() == $$;                     # daemon pid cannot be the current pid
+        next if $p->cmndline() !~ m{^$name\b};       # cmdline must match appname
+        next if @pids and !exists($pids{$p->pid()}); # if we have a set of pids, check against that
         DEBUG "Match: ", $p->cmndline();
         push @procs, $p->cmndline();
     }
@@ -334,6 +340,11 @@ sub pid_file_process_running {
     if(! process_running($pid) ) {
         return undef;
     }
+
+    # if we dont want to check the appname, we are ready now
+    return $pid  if !$check_appname;
+
+    # check the appname of the given pid
     if(! processes_running_by_name($appname, $pid) ) {
         return undef;
     }
@@ -344,6 +355,7 @@ sub pid_file_process_running {
 ###########################################
 sub END {
 ###########################################
+    # stop the daemon, if this is the master of the daemon and not a child
     if( $daemon_pid && $daemon_pid == $$ ) {
         INFO "Stopping Process with ID $daemon_pid";
         local $SIG{INT} = 'IGNORE';
@@ -488,6 +500,10 @@ this instead:
 
 Foreground mode. Log messages go to the screen.
 
+=item -c
+
+Check the appname befor sending signals to a process to stop the daemon.
+
 =item -l logfile
 
 Logfile to send Log4perl messages to in background mode. Defaults
@@ -521,11 +537,13 @@ variables:
 
     use App::Daemon qw(daemonize);
 
-    $App::Daemon::logfile    = "mylog.log";
-    $App::Daemon::pidfile    = "mypid.log";
-    $App::Daemon::l4p_conf   = "myconf.l4p";
-    $App::Daemon::background = 1;
-    $App::Daemon::as_user    = "nobody";
+    $App::Daemon::appname       = "mydaemon";
+    $App::Daemon::logfile       = "mylog.log";
+    $App::Daemon::pidfile       = "mypid.log";
+    $App::Daemon::l4p_conf      = "myconf.l4p";
+    $App::Daemon::background    = 1;
+    $App::Daemon::check_appname = 1;
+    $App::Daemon::as_user       = "nobody";
 
     use Log::Log4perl qw(:levels);
     $App::Daemon::loglevel   = $DEBUG;
