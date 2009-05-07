@@ -58,10 +58,12 @@ else {
     exit;
 }
 
-open PIDFILE, "<$pidfile";
-my $pid = <PIDFILE>;
-chomp $pid;
-close PIDFILE;
+my $pid = '';
+if( open PIDFILE, "<$pidfile" ) {
+    $pid = <PIDFILE>;
+    chomp $pid;
+    close PIDFILE;
+}
 
 ok($pid, "daemon pid found");
 
@@ -80,13 +82,13 @@ open FILE, "<$outfile";
 my @data1 = <FILE>;
 close FILE;
 
-is(scalar(@data1), 6, "status message: lines") or diag(@data1);
-like($data1[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
-like($data1[1], qr/^Pid in file:\s+$pid$/, "status message: pid");
-like($data1[2], qr/^Running:\s+yes$/, "status message: running");
-like($data1[3], qr/^Name match:\s+2$/, "status message: match two processes");
-like($data1[4], qr/^\s+$appname$/, "status message: match appname");
-like($data1[5], qr/^\s+$appname$/, "status message: match childs appname");
+is(scalar(@data1), 6, "status message after start: number of lines") or diag(@data1);
+like($data1[0] || '', qr/^Pid file:\s+$pidfile$/, "status message after start: pidfile");
+like($data1[1] || '', qr/^Pid in file:\s+$pid$/, "status message after start: pid");
+like($data1[2] || '', qr/^Running:\s+yes$/, "status message after start: running");
+like($data1[3] || '', qr/^Name match:\s+2$/, "status message after start: match two processes");
+like($data1[4] || '', qr/^\s+$appname$/, "status message after start: match appname");
+like($data1[5] || '', qr/^\s+$appname$/, "status message after start: match childs appname");
 
 # check stop
 if( fork ) {
@@ -114,10 +116,10 @@ open FILE, "<$outfile";
 my @data2 = <FILE>;
 close FILE;
 
-is(scalar(@data2), 3, "status message: lines") or diag(@data2);
-like($data2[0], qr/^Pid file:\s+$pidfile$/, "status message: pidfile");
-like($data2[1], qr/^No pidfile found$/, "status message: no pidfile");
-like($data2[2], qr/^Name match:\s+0$/, "status message: match none process");
+is(scalar(@data2), 3, "status message after stop: number of lines") or diag(@data2);
+like($data2[0] || '', qr/^Pid file:\s+$pidfile$/, "status message after stop: pidfile");
+like($data2[1] || '', qr/^No pidfile found$/, "status message after stop: no pidfile");
+like($data2[2] || '', qr/^Name match:\s+0$/, "status message after stop: match none process");
 
 # fakestart
 my $fakepid;
@@ -153,15 +155,15 @@ open FILE, "<$logfile";
 my @data3 = <FILE>;
 close FILE;
 
-is(scalar(@data3), 3, "log message: lines") or diag(@data3);
-like($data3[0], qr/^[0-9 :\/]+Process ID is $pid$/, "log message: pid");
-like($data3[1], qr/^[0-9 :\/]+Written to $pidfile$/, "log message: pidfile");
-like($data3[2], qr/^[0-9 :\/]+Stopping Process with ID $pid$/, "log message: stopping");
+is(scalar(@data3), 3, "log message from daemon: number of lines") or diag(@data3);
+like($data3[0] || '', qr/^[0-9 :\/]+Process ID is $pid$/, "log message from daemon: pid");
+like($data3[1] || '', qr/^[0-9 :\/]+Written to $pidfile$/, "log message from daemon: pidfile");
+like($data3[2] || '', qr/^[0-9 :\/]+Stopping Process with ID $pid$/, "log message from daemon: stopping");
 
 # nothing was send to STDERR?
 open FILE, "<$errfile";
 my @data = <FILE>;
 close FILE;
 
-is(scalar @data, 1, "stderr message: lines") or diag(@data);
-like($data[0], qr/^Daemon\.pm-[0-9]+: Daemon not running or name not match, removing pidfile$/, "stderr message: fakestop");
+is(scalar @data, 1, "stderr message from testscript: number of lines") or diag(@data);
+like($data[0] || '', qr/^Daemon\.pm-[0-9]+: Daemon not running, removing pidfile$/, "stderr message from testscript: fakestop");

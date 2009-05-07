@@ -119,9 +119,9 @@ sub daemonize {
     if($action eq "stop" or $action eq "restart") {
         if(-f $pidfile) {
             if( my $pid = pid_file_process_running() ) {
-                kill 2, $pid;
+                kill 'INT' => $pid;
             } else {
-                ERROR "Daemon not running or name not match, removing pidfile\n";
+                ERROR "Daemon not running, removing pidfile\n";
                 unlink $pidfile or die "Can't remove $pidfile ($!)";
             }
         } else {
@@ -460,7 +460,8 @@ is run in foreground mode for testing purposes.
 
 will find the daemon's PID in the pidfile and send it a kill signal. It
 won't verify if this actually shut down the daemon or if it's immune to 
-the kill signal.
+the kill signal. With the -c flag stop will check additional the processname
+of the pid. This must match the appname from the daemon.
 
 =item status
 
@@ -471,7 +472,7 @@ the output look like this:
     Pid in file: 15562
     Running:     yes
     Name match:  1
-        /usr/local/bin/perl -w test.pl
+        test.pl
 
 This indicates that the pidfile says that the daemon has PID 15562 and
 that a process with this PID is actually running at this moment. Also,
@@ -484,14 +485,6 @@ C<test.pl>, it will match lines like "perl -w test.pl" or
 "perl test.pl start", but unfortunately also lines like 
 "vi test.pl".
 
-If the process is no longer running, the status output might look like
-this instead:
-
-    Pid file:    /tmp/tt.pid
-    Pid in file: 14914
-    Running:     no
-    Name match:  0
-
 =head2 Command Line Options
 
 =over 4
@@ -502,7 +495,8 @@ Foreground mode. Log messages go to the screen.
 
 =item -c
 
-Check the appname befor sending signals to a process to stop the daemon.
+Check the appname against the processname befor sending signals to the daemon.
+The processname is the name from the process from the pidfile.
 
 =item -l logfile
 
