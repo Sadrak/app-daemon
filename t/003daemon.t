@@ -16,7 +16,7 @@ flock $lf, LOCK_UN;
 flock $of, LOCK_UN;
 flock $ef, LOCK_UN;
 
-# Ignore childs / zombies
+# Ignore children / zombies
 $SIG{CHLD} = 'IGNORE';
 
 # send all error to a file
@@ -40,7 +40,7 @@ else {
     @ARGV = ();
     daemonize();
 
-    # dont let the childs removing the pidfile
+    # dont let the children removing the pidfile
     if( !fork() ) {
         die("I am a dying child");
         exit;
@@ -88,7 +88,7 @@ like($data1[1] || '', qr/^Pid in file:\s+$pid$/, "status message after start: pi
 like($data1[2] || '', qr/^Running:\s+yes$/, "status message after start: running");
 like($data1[3] || '', qr/^Name match:\s+2$/, "status message after start: match two processes");
 like($data1[4] || '', qr/^\s+$appname$/, "status message after start: match appname");
-like($data1[5] || '', qr/^\s+$appname$/, "status message after start: match childs appname");
+like($data1[5] || '', qr/^\s+$appname$/, "status message after start: match children appname");
 
 # check stop
 if( fork ) {
