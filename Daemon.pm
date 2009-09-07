@@ -147,7 +147,9 @@ sub daemonize {
     $daemon_pid = $$;
 
     # set processtitle
-    $0 = $appname;
+    if( $check_appname ) {
+        $0 = $appname;
+    }
 
     # set SIGNAL for INT and TERM to stop the daemon
     $SIG{INT}  = sub { exit; };

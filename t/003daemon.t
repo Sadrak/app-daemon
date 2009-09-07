@@ -87,8 +87,8 @@ like($data1[0] || '', qr/^Pid file:\s+$pidfile$/, "status message after start: p
 like($data1[1] || '', qr/^Pid in file:\s+$pid$/, "status message after start: pid");
 like($data1[2] || '', qr/^Running:\s+yes$/, "status message after start: running");
 like($data1[3] || '', qr/^Name match:\s+2$/, "status message after start: match two processes");
-like($data1[4] || '', qr/^\s+$appname$/, "status message after start: match appname");
-like($data1[5] || '', qr/^\s+$appname$/, "status message after start: match children appname");
+like($data1[4] || '', qr/^\s+$appname\b/, "status message after start: match appname");
+like($data1[5] || '', qr/^\s+$appname\b/, "status message after start: match children appname");
 
 # check stop
 if( fork ) {
